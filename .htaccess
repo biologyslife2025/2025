@@ -1,5 +1,6 @@
 RewriteEngine On
-RewriteBase /
+# 1) Gốc của site giờ nằm ở /2025/
+RewriteBase /2025/
 
 # ÉP PNG thành image/png
 AddType image/png .png
@@ -17,8 +18,8 @@ RewriteRule .* - [L]
 # ——————————————
 # CHUYỂN HƯỚNG ĐẶT BIỆT CHO ttf001
 # ——————————————
-# Khi ai truy cập /ttf001 hoặc /ttf001/ thì redirect về login.php
-RewriteRule ^ttf001/?$ /tai-khoan/login.php [R=302,L]
+# Khi ai truy cập /2025/ttf001 hoặc /2025/ttf001/ thì redirect về /2025/tai-khoan/login.php
+RewriteRule ^ttf001/?$ /2025/tai-khoan/login.php [R=302,L]
 
 # 1) URL số → app con
 RewriteRule ^([0-9]+)(?:/(.*))?$ web/file/index.php?path=$1/$2 [L,QSA]
