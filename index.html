@@ -1,12 +1,21 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+   <script>
+    // Lấy segment đầu tiên sau domain, ví dụ: "/2025/quiz.html" => ["", "2025", "quiz.html"]
+    const segments = window.location.pathname.split('/');
+    const repoDir = segments[1] || ''; 
+    if (repoDir) {
+      const base = document.createElement('base');
+      base.href = `/${repoDir}/`;
+      document.head.appendChild(base);
+    }
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="QuizBio">
-  <base href="/2025/">
   <link rel="icon" href="favicon-32x32.png?v=2" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" sizes="180x180" href="logoapp.png">
   <link rel="manifest" href="manifest.json">
