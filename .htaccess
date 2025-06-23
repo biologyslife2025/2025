@@ -1,0 +1,31 @@
+RewriteEngine On
+RewriteBase /
+
+# ÉP PNG thành image/png
+AddType image/png .png
+<IfModule mod_mime.c>
+  <FilesMatch "\.png($|\?)">
+    ForceType image/png
+  </FilesMatch>
+</IfModule>
+
+# 0) Nếu file/folder thật → serve luôn
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule .* - [L]
+
+# ——————————————
+# CHUYỂN HƯỚNG ĐẶT BIỆT CHO ttf001
+# ——————————————
+# Khi ai truy cập /ttf001 hoặc /ttf001/ thì redirect về login.php
+RewriteRule ^ttf001/?$ /tai-khoan/login.php [R=302,L]
+
+# 1) URL số → app con
+RewriteRule ^([0-9]+)(?:/(.*))?$ web/file/index.php?path=$1/$2 [L,QSA]
+
+# 2) SPA gốc
+RewriteRule ^thithu/?$     index.html?path=thithu     [L,QSA]
+RewriteRule ^tracuu/?$     index.html?path=tracuu     [L,QSA]
+RewriteRule ^ontap/?$      index.html?path=ontap      [L,QSA]
+RewriteRule ^thithufull/?$ index.html?path=thithufull [L,QSA]
+RewriteRule ^([^/]+)/?$    index.html?path=$1         [L,QSA]
