@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="QuizBio">
+  <link rel="icon" href="favicon-32x32.png?v=2" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" sizes="180x180" href="logoapp.png">
+  <link rel="manifest" href="manifest.json">
+  <title></title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #fff;
+    }
+    iframe { width: 100%; height: 99.9999%; border: none; }
+
+    /* Sidebar */
+    #sidebar { width: 250px; background: #003366; color: white; height: 100vh; overflow-y: auto; position: fixed; left: 0; top: 0; padding: 20px; box-sizing: border-box; transition: transform 0.3s ease; }
+    @media (max-width:1000px) { #sidebar { transform: translateX(-100%); z-index:1000; } }
+    #sidebar h2 { text-align:center; margin-top:0; }
+    .menu-group { margin-bottom:15px; }
+    .menu-group>button { width:100%; padding:8px; background:#0055aa; border:none; color:white; text-align:left; cursor:pointer; border-radius:4px; font-size:12px;}
+    .submenu { display:none; margin-left:10px; margin-top:5px; font-size:12px; }
+    .submenu button { width:100%; padding:6px; background:#0077cc; border:none; color:white; cursor:pointer; border-radius:4px; margin-bottom:5px; font-size:12px;}
+
+    /* Main content */
+    #main-content { margin-left:250px; margin-top:40px; height:100vh; width:100%; overflow:auto; padding:20px; box-sizing:border-box; background:#fff; }
+    @media (max-width:1000px) { #main-content { margin-left:0; } }
+
+    /* Progress bar */
+    #progress-container { width:100%; height:5px; background:#ccc; margin-bottom:10px; border-radius:3px; overflow:hidden; }
+    #progress-bar { width:0%; height:100%; background:#003366; transition: width 0.2s; }
+    #status-msg { font-size:14px; color:#003366; margin-bottom:10px; }
+
+    /* Preview */
+    #preview-container { border:1px solid #ccc; border-radius:4px; padding:10px; margin-bottom:20px; }
+    #preview-iframe { width: 100%; height: 450px; border: none; background: #f9f9f9;}
+    #preview-container h3 { margin-top:0; font-size:18px; color:#003366; }
+    #access-btn { display:inline-block; padding:10px 20px; background:#003366; color:white; border:none; border-radius:4px; cursor:pointer; margin-top:10px; font-size:16px; }
+    #access-btn:hover { opacity:0.9; }
+
+    /* Card login styles */
+    .login-card-container { background: linear-gradient(135deg, #f8f9fa, #e9ecef); }
+    .login-card {
+      max-width: 400px;
+      width: 100%;
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .login-card .card-header {
+      background-color: #003366;
+      color: #fff;
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    .login-card .card-body { padding: 2rem; }
+    .login-card .form-control:focus {
+      border-color: #003366;
+      box-shadow: 0 0 0 0.2rem rgba(0,51,102,0.25);
+    }
+    .footer { padding: 10px 0; text-align: center; font-size: 0.9rem; color: #6e6e6e;}
+        /* Hamburger icon: chỉ hiển thị trên mobile */
+    #hamburger {
+      display: none;
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1100;
+      background: transparent;
+      border: none;
+      font-size: 28px;
+      color: #003366;
+      cursor: pointer;
+    }
+    @media (max-width: 1000px) {
+      #hamburger {
+        display: block;
+      }
+    }
+    /* Cho form thụt vào một chút */
+    #add-new-container { padding-left: 10px; border-left: 2px solid #0055aa; }
+  </style>
+</head>
+<body>
+<script>
+  const EXPIRY_MS = 2 * 60 * 60 * 1000;
+  let progressInterval = null;
+
+  // Hàm điều hướng: nếu phần tử "status-msg" tồn tại thì cập nhật thông báo, sau đó chuyển hướng
+  function navigate(pageKey) {
+    const statusElem = document.getElementById('status-msg');
+    if (statusElem) {
+      statusElem.textContent = "Đang truy cập trang...";
+    }
+    setTimeout(() => {
+      window.location.pathname = '/' + pageKey;
+    }, 500);
+  }
+
+  // Hàm hiển thị/ẩn submenu
+  function toggleSubmenu(menu) {
+    const submenu = document.getElementById('submenu-' + menu);
+    submenu.style.display = (!submenu.style.display || submenu.style.display === 'none') ? 'block' : 'none';
+  }
+
+  // Hàm thanh tiến trình
+  function startProgress() {
+    const progressBar = document.getElementById('progress-bar');
+    progressBar.style.width = '0%';
+    if (progressInterval) clearInterval(progressInterval);
+    let progress = 0;
+    progressInterval = setInterval(() => {
+      progress = Math.min(progress + Math.random() * 5, 95);
+      progressBar.style.width = progress + '%';
+    }, 100);
+  }
+
+  function finishProgress() {
+    const progressBar = document.getElementById('progress-bar');
+    progressBar.style.width = '100%';
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+    setTimeout(() => {
+      progressBar.style.width = '0%';
+    }, 500);
+  }
+
+  // Hàm hiển thị demo preview
+  function loadPreview(pageItem) {
+    // Cập nhật tiêu đề và trạng thái
+    const previewTitle = document.getElementById('preview-title');
+    const statusMsg = document.getElementById('status-msg');
+    if (previewTitle) previewTitle.textContent = pageItem["Tên"];
+    if (statusMsg) statusMsg.textContent = "Đang mở giao diện...";
+    // Gán sự kiện cho nút truy cập
+    const accessBtn = document.getElementById('access-btn');
+    if (accessBtn) {
+      accessBtn.onclick = function() {
+        navigate(pageItem.Path);
+      };
+    }
+    // Nạp trang demo vào iframe
+    const iframe = document.getElementById('preview-iframe');
+    startProgress();
+    iframe.onload = function() {
+      finishProgress();
+      if (statusMsg) statusMsg.textContent = "Giao diện đã tải xong.";
+    };
+    iframe.onerror = function() {
+      finishProgress();
+      if (statusMsg) statusMsg.textContent = "Lỗi: Không thể tải giao diện.";
+    };
+    iframe.src = pageItem.Link;
+
+    // Nếu đang ở chế độ mobile, ẩn sidebar sau khi chọn button
+    if (window.innerWidth < 1000) {
+      hideSidebar();
+    }
+  }
+
+  // Hàm ẩn sidebar (dành cho mobile)
+  function hideSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && window.innerWidth < 1000) {
+      sidebar.style.transform = 'translateX(-100%)';
+    }
+    // Đổi màu hamburger về màu ban đầu
+    const hamburger = document.getElementById('hamburger');
+    if (hamburger) {
+        hamburger.style.color = '#003366';
+    }
+  }
+
+  // Hàm hiện sidebar (dành cho mobile)
+  function showSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && window.innerWidth < 1000) {
+      sidebar.style.transform = 'translateX(0)';
+    }
+    // Đổi màu hamburger sang #fff khi mở menu
+    const hamburger = document.getElementById('hamburger');
+    if (hamburger) {
+        hamburger.style.color = '#fff';
+    }
+  }
+
+  // Hàm render giao diện menu từ list.json
+  function renderMenu(data) {
+    // Nhóm các dòng theo Menu
+    const menuGroups = {};
+    data.forEach(row => {
+      const menuName = row.Menu;
+      if (!menuGroups[menuName]) {
+        menuGroups[menuName] = [];
+      }
+      menuGroups[menuName].push(row);
+    });
+
+    // Render sidebar
+    let sidebarHtml = `<div id="sidebar"><h2>MENU</h2>
+    <div  class="menu-group">
+    <button id="btn-add-new" style="background:#fff; color:#003366; width: auto;">
+    + Thêm
+    </button>
+    <div id="add-new-container" style="display: none; margin-bottom:15px; margin-top:10px;">
+    <form id="add-menu-form" class="row g-2">
+        <div class="col-12">
+        <input type="text" class="form-control" id="new-path" placeholder="/path" required>
+        </div>
+        <div class="col-12">
+        <input type="url" class="form-control" id="new-link" placeholder="Link" required>
+        </div>
+        <div class="col-12">
+        <input type="text" class="form-control" id="new-name" placeholder="Tên hiển thị" required>
+        </div>
+        <div class="col-12">
+        <input type="text" class="form-control" id="new-menu" placeholder="Nhóm Menu" required>
+        </div>
+        <div class="col-12 text-end">
+        <button type="submit" class="btn btn-sm" style="background:#003366; color:#fff;">Lưu</button>
+        </div>
+    </form>
+    <div id="add-menu-msg" style="margin-top:8px; font-size:14px;"></div>
+    </div>
+    </div>
+    `;
+    for (const menu in menuGroups) {
+      sidebarHtml += `<div class="menu-group">
+          <button onclick="toggleSubmenu('${menu}')">${menu}</button>
+          <div id="submenu-${menu}" class="submenu">`;
+      menuGroups[menu].forEach(item => {
+        sidebarHtml += `<button class="preview-btn" data-path="${item.Path}" data-link="${item.Link}" data-name="${item['Tên']}">${item['Tên']}</button>`;
+      });
+      sidebarHtml += `</div></div>`;
+    }
+    sidebarHtml += `</div>`;
+
+    // Render khu vực preview demo
+    let mainContentHtml = `<div id="main-content">
+      <div id="preview-container">
+        <div id="progress-container"><div id="progress-bar"></div></div>
+        <div id="status-msg">Chọn một trang để xem trước.</div>
+        <h3 id="preview-title">Xem trước</h3>
+        <iframe id="preview-iframe" src="" title="Xem trước"></iframe>
+        <button id="access-btn">Truy cập trang</button>
+      </div>
+      <div class="footer">&copy; 2025 - Hệ thống Biology's Life 2025</div>
+    </div>`;
+
+    // Thêm nút hamburger cho mobile
+    const hamburgerHtml = `<button id="hamburger">&#9776;</button>`;
+
+    document.body.innerHTML = `<div style="display:flex; height:100vh;">${sidebarHtml}${mainContentHtml}</div>${hamburgerHtml}`;
+
+    // Gán sự kiện cho nút hamburger để hiển thị/ẩn sidebar
+    const hamburger = document.getElementById('hamburger');
+    if (hamburger) {
+      hamburger.addEventListener("click", function() {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar.style.transform === 'translateX(0px)' || sidebar.style.transform === 'translateX(0)') {
+          hideSidebar();
+        } else {
+          showSidebar();
+        }
+      });
+    }
+
+    // Gán sự kiện cho các nút preview
+    const previewButtons = document.querySelectorAll(".preview-btn");
+    previewButtons.forEach(btn => {
+      btn.addEventListener("click", function() {
+        const pageItem = {
+          Path: this.getAttribute("data-path"),
+          Link: this.getAttribute("data-link"),
+          "Tên": this.getAttribute("data-name")
+        };
+        loadPreview(pageItem);
+      });
+    });
+  }
+
+    // Hàm xử lý khi submit form thêm menu
+    function setupAddMenuForm(data) {
+    const form = document.getElementById('add-menu-form');
+    const msg = document.getElementById('add-menu-msg');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        // Lấy giá trị mới
+        const newItem = {
+        Path: document.getElementById('new-path').value.trim(),
+        Link: document.getElementById('new-link').value.trim(),
+        "Tên": document.getElementById('new-name').value.trim(),
+        Menu: document.getElementById('new-menu').value.trim()
+        };
+        // Thêm vào mảng data
+        data.push(newItem);
+        // Gọi lại renderMenu để cập nhật UI
+        renderMenu(data);
+        msg.textContent = 'Đã thêm thành công mục mới!';
+        // Clear form
+        form.reset();
+        // Gửi request lên server để ghi đè list.json
+        fetch('/api/updateList', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+        })
+        .then(res => res.ok ? msg.textContent += ' (Đã lưu server.)' : Promise.reject(res))
+        .catch(err => msg.textContent += ' (Lưu server thất bại.)');
+    });
+    }
+
+  // Hàm xử lý URL
+  function processURL() {
+    const currentPath = window.location.pathname.substring(1);
+    if (!currentPath) {
+      document.body.innerHTML = `
+        <div class="d-flex align-items-center justify-content-center login-card-container vh-100">
+          <div class="card login-card">
+            <div class="card-header">
+            <img src="logo.png?v=2" alt="Logo" style="max-width: 7%; height: auto;">
+            BIOLOGY'S LIFE 2025</div>
+            <div class="card-body text-center">
+              <button class="btn btn-primary w-100 mb-2" style="background-color: #003366; border: 2px solid #003366;" onclick="showAdminLogin()">ĐĂNG NHẬP ADMIN</button>
+              <button class="btn btn-secondary w-100" style="background-color: #003366; border: 2px solid #003366;" onclick="navigate('ttf001')">ĐĂNG NHẬP THI THỬ</button>
+            </div>
+            <div class="footer">&copy; 2025 - Hệ thống Biology's Life 2025</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Toggle hiển thị form Thêm mới
+    function setupToggleAddNew() {
+    const btn = document.getElementById('btn-add-new');
+    const container = document.getElementById('add-new-container');
+    btn.addEventListener('click', () => {
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'block' : 'none';
+        btn.textContent = isHidden ? 'Hủy' : '+ Thêm';
+    });
+    }
+
+    // Nếu URL là "list", render giao diện menu
+    if (currentPath === "list") {
+        const access = localStorage.getItem('listAccess');
+        if (!access || Date.now() - parseInt(access, 10) > EXPIRY_MS) {
+        // Chưa login hoặc đã quá hạn → bắt về trang login
+        localStorage.removeItem('listAccess');
+        window.location.pathname = '/';
+        return;
+        }
+    fetch("list.json")
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(data => {
+        renderMenu(data);
+        setupAddMenuForm(data);     // xử lý submit form
+        setupToggleAddNew();        // xử lý toggle form
+        })
+        .catch(err => {
+          console.error("Lỗi tải giao diện:", err);
+          document.body.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family: Arial, sans-serif; text-align:center; padding:20px;">
+            <h2 style="color:#003366; margin-bottom:10px;">Lỗi tải giao diện</h2>
+            <p style="margin-bottom:20px;">${err.message}</p>
+            <button
+              onclick="window.location.reload()"
+              style="
+              padding:10px 20px;
+              background:#003366;
+              color:#fff;
+              border:none;
+              border-radius:4px;
+              cursor:pointer;
+              font-size:14px;
+              "
+            >
+              Tải lại trang
+            </button>
+            </div>
+          `;
+          });
+    } else {
+      // Nếu URL không phải "list", fetch list.json, tìm đối tượng có Path khớp và render trang đầy đủ
+      // Thay thế phần render đầy đủ khi URL không phải "list"
+        fetch("list.json")
+        .then(response => {
+            if (!response.ok) {
+            throw new Error("HTTP error " + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const page = data.find(item => item.Path === currentPath);
+            if (page) {
+            document.title = page["Tên"];
+
+                // CSS cho spinner và dòng chữ
+            const style = document.createElement('style');
+            style.textContent = `
+            /* Khung bao spinner, để căn giữa */
+            #spinner {
+                position: fixed;
+                top: 45%;
+                left: 50%;
+                width: 50px;
+                height: 50px;
+                margin: -25px 0 0 -25px;
+                z-index: 10000;
+            }
+            /* Vòng tròn quay */
+            #spinner-circle {
+                width: 100%;
+                height: 100%;
+                border: 5px solid #f3f3f3;
+                border-top: 5px solid #003366;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+            /* Phần trăm hiển thị */
+            #spinner-percent {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 14px;
+                color: #003366;
+                font-family: Arial, sans-serif;
+            }
+            /* Dòng chữ trạng thái */
+            #spinner-text {
+                position: fixed;
+                top: 55%;
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 16px;
+                color: #003366;
+                font-family: Arial, sans-serif;
+                z-index: 10000;
+                text-align: center;
+            }
+            @keyframes spin {
+                0%   { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            #iframe-container {
+                position: relative;
+                width: 100%;
+                height: 100vh;
+            }
+            #iframe-full {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+            `;
+            document.head.appendChild(style);
+
+            // Tạo container cho spinner, % và iframe
+            const container = document.createElement('div');
+            container.id = 'iframe-container';
+            container.innerHTML = `
+            <div id="spinner">
+                <div id="spinner-circle"></div>
+                <div id="spinner-percent">0%</div>
+            </div>
+            <div id="spinner-text">Vui lòng đợi một vài giây để hệ thống tải giao diện...</div>
+            <iframe id="iframe-full" allow="camera; microphone; display-capture;" src="${page.Link}"></iframe>
+            `;
+            document.body.innerHTML = '';      // xóa nội dung cũ
+            document.body.appendChild(container);
+
+            // Giả lập tăng % load
+            const percentElem = document.getElementById('spinner-percent');
+            let percent = 0;
+            const percentInterval = setInterval(() => {
+            percent = Math.min(percent + Math.random() * 10, 99);
+            percentElem.textContent = Math.floor(percent) + '%';
+            }, 200);
+
+            // Ẩn spinner và text khi iframe load xong
+            const iframe = document.getElementById('iframe-full');
+            iframe.addEventListener('load', () => {
+            clearInterval(percentInterval);
+            percentElem.textContent = '100%';
+            setTimeout(() => {
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('spinner-text').style.display = 'none';
+            }, 300);
+            });
+            } else {
+            document.body.innerHTML = `
+                <h2 style="text-align:center; font-family: Times New Roman;">
+                404 - Không tìm thấy trang
+                </h2>`;
+            }
+        })
+        .catch(err => {
+            console.error("Lỗi tải giao diện:", err);
+            document.body.innerHTML = `
+            <div style="display:flex; flex-direction:column;
+                        align-items:center; justify-content:center;
+                        height:100vh; font-family: Arial, sans-serif;
+                        text-align:center; padding:20px;">
+                <h2 style="color:#003366; margin-bottom:10px;">
+                Lỗi tải giao diện
+                </h2>
+                <p style="margin-bottom:20px;">${err.message}</p>
+                <button onclick="window.location.reload()"
+                        style="padding:10px 20px; background:#003366; color:#fff;
+                            border:none; border-radius:4px; cursor:pointer;
+                            font-size:14px;">
+                Tải lại trang
+                </button>
+            </div>
+            `;
+        });
+    }
+  }
+
+  // Hàm xử lý đăng nhập
+    function login() {
+    const user = document.getElementById("user").value;
+    const password = document.getElementById("password").value;
+    const errorElem = document.getElementById("error");
+    errorElem.textContent = "";
+
+    if (password === "123456") {
+        localStorage.setItem('listAccess', Date.now().toString());
+        window.location.pathname = "/lesson";
+        return;
+    }
+    if (user === "biologyslife" && password === "biology2025") {
+        localStorage.setItem('listAccess', Date.now().toString());
+        window.location.pathname = "/list";
+        return;
+    }
+
+    // Sai thì báo lỗi
+    errorElem.textContent = "Sai tên đăng nhập hoặc mật khẩu. Vui lòng thử lại.";
+    }
+
+    function showAdminLogin() {
+    document.body.innerHTML = `
+      <div class="d-flex align-items-center justify-content-center login-card-container vh-100">
+        <div class="card login-card">
+          <div class="card-header">
+          <img src="logo.png?v=2" alt="Logo" style="max-width: 7%; height: auto;">
+          ĐĂNG NHẬP ADMIN</div>
+          <div class="card-body" >
+            <div class="form-floating mb-3">
+              <input type="text" class="form-control" id="user" placeholder="Nhập tên đăng nhập">
+              <label for="user">Tên đăng nhập</label>
+            </div>
+            <div class="form-floating mb-3">
+              <input type="password" class="form-control" id="password" placeholder="Nhập mật khẩu">
+              <label for="password">Mật khẩu</label>
+            </div>
+            <button class="btn btn-primary w-100 mb-2" style="background-color: #003366; border: 2px solid #003366;" onclick="login()">Đăng nhập</button>
+            <button class="btn btn-link w-100" onclick="processURL()" style="color: #003366;">← Quay lại</button>
+            <p id="error" class="text-danger mt-2"></p>
+          </div>
+          <div class="footer">&copy; 2025 - Hệ thống Biology's Life 2025</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Hàm tự động xóa localStorage sau 1 phút
+  function autoClearLocalStorage() {
+    setInterval(() => {
+      localStorage.clear();
+      console.log("localStorage đã bị xóa sau 1 phút");
+    }, 60000);
+  }
+  autoClearLocalStorage();
+
+  processURL();
+</script>
+</body>
+</html>
